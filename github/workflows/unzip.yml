@@ -1,21 +1,29 @@
-name: Auto Unzip
-on: push
+name: Unzip LMS Plan
+on: [push, workflow_dispatch]
 
 jobs:
-  unzip-job:
+  unzip-and-commit:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v3
-      
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Unzip the file
-        # استبدل project.zip باسم ملفك
         run: |
-          unzip -o project.zip
-          rm project.zip
-          
-      - uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: "Unzipped files automatically"
- 
+          if [ -f "lms-development-plan.zip" ]; then
+            echo "File found. Unzipping..."
+            unzip -o lms-development-plan.zip
+            rm lms-development-plan.zip
+            
+            # إعدادات جيت عشان يقدر يحفظ التغييرات
+            git config --global user.name "GitHub Action"
+            git config --global user.email "action@github.com"
+            git add .
+            git commit -m "Unzipped lms-development-plan.zip successfully"
+            git push
+          else
+            echo "File lms-development-plan.zip not found in root directory."
+            exit 1
+          fi
