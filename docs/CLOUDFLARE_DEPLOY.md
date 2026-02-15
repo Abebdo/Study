@@ -1,72 +1,57 @@
 # Cloudflare Pages deploy notes (Next.js App Router)
 
-## What actually failed (from your log)
-Cloudflare read `wrangler.toml` and expected this output directory:
+## Root cause from the latest failing log
+The deployment failed due to **recursive build invocation**:
 
-```toml
-pages_build_output_dir = ".vercel/output/static"
-```
+1. Cloudflare runs `npm run build`.
+2. `build` ran `@cloudflare/next-on-pages`.
+3. `next-on-pages` runs `vercel build` internally.
+4. `vercel build` ran `pnpm run build` again.
+5. Because `build` still called `next-on-pages`, it recursively invoked itself and failed with:
+   - `Error: vercel build must not recursively invoke itself`
 
-Then it executed the project build command as:
+## Why this happened
+`build` was bound directly to `next-on-pages`, while `next-on-pages` itself depends on `vercel build`, which calls the project build script.
 
-```bash
-npm run build
-```
+## Fix applied
+A guard script now controls build behavior:
 
-But at that moment `build` was `next build`, which only creates `.next` and **does not** create `.vercel/output/static`.
-So validation failed with:
+- Normal Cloudflare run (`npm run build`): run `pnpm dlx @cloudflare/next-on-pages@1`
+- Nested Vercel run (when `VERCEL=1`): run `next build` only
 
-- `Error: Output directory ".vercel/output/static" not found.`
-
-## Root cause
-A mismatch between:
-- expected output directory (`.vercel/output/static`), and
-- actual command executed by Cloudflare (`npm run build` -> `next build`).
-
-This is why the build failed even though Next.js compilation itself succeeded.
-
-## Framework/runtime facts for this repo
-- Framework: **Next.js 16**
-- Router: **App Router** (`app/`)
-- Rendering: mixed static + dynamic (`ƒ` routes + `app/api/*` route handlers)
-- `next.config.mjs` does **not** use `output: "export"`, so this is not static-export mode.
-
-## Production-ready fix applied
-Make `npm run build` produce the Cloudflare Pages adapter output directly.
+This breaks the recursion and still produces the Pages adapter output.
 
 ### `package.json` (fixed)
 ```json
 {
   "scripts": {
-    "build": "npx @cloudflare/next-on-pages@1",
+    "build": "node scripts/cloudflare-build.mjs",
     "build:next": "next build",
-    "build:pages": "npx @cloudflare/next-on-pages@1",
-    "deploy:pages": "npm run build"
+    "build:pages": "pnpm dlx @cloudflare/next-on-pages@1",
+    "deploy:pages": "pnpm run build"
   }
 }
 ```
 
-### `wrangler.toml` (kept correct)
+### `scripts/cloudflare-build.mjs` (new)
+- If `VERCEL=1` => executes `next build`
+- Otherwise => executes `pnpm dlx @cloudflare/next-on-pages@1`
+
+### `wrangler.toml` (unchanged and correct)
 ```toml
 name = "study-lms"
 compatibility_date = "2026-02-15"
 pages_build_output_dir = ".vercel/output/static"
 ```
 
-## Cloudflare Pages settings to use
+## Cloudflare Pages settings
 - Build command: `npm run build`
-- Build output directory: leave empty (Wrangler is used) OR `.vercel/output/static`
-- Framework preset: **Next.js**
+- Build output directory: keep empty (Wrangler-managed) or `.vercel/output/static`
+- Framework preset: Next.js
 
 ## Verification checklist
-After build in CI or locally:
-
-1. `.vercel/output/static` exists.
-2. `.vercel/output/static/index.html` exists.
-3. `.vercel/output/functions` exists.
-4. Cloudflare log no longer shows `Output directory ... not found`.
-
-## Required environment variables
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (server-side only)
+After deploy:
+1. Build log no longer contains recursive invocation error.
+2. Build log reaches adapter completion successfully.
+3. `.vercel/output/static` is found by Cloudflare validation.
+4. Site and API routes load without Pages 404.

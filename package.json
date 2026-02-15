@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbo",
-    "build": "npx @cloudflare/next-on-pages@1",
+    "build": "node scripts/cloudflare-build.mjs",
     "build:next": "next build",
-    "build:pages": "npx @cloudflare/next-on-pages@1",
-    "deploy:pages": "npm run build",
+    "build:pages": "pnpm dlx @cloudflare/next-on-pages@1",
+    "deploy:pages": "pnpm run build",
     "start": "next start",
     "lint": "tsc --noEmit",
     "verify:supabase": "node scripts/006_verify_supabase_config.mjs"
