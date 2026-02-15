@@ -4,40 +4,65 @@ import React, { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Eye, EyeOff, Layers, Globe, User, Mail, Lock, AlertCircle } from "lucide-react"
-import { usePlatform } from "@/lib/auth-context"
-import type { UserRole } from "@/lib/store"
+import { hasActiveSession, signUpWithEmail, signUpWithGoogle } from "@/lib/auth-client"
 
 export default function SignUpPage() {
   const router = useRouter()
-  const { signup, isAuthenticated } = usePlatform()
   const [showPassword, setShowPassword] = useState(false)
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [role, setRole] = useState<UserRole>("student")
+  const [role, setRole] = useState<"student" | "teacher">("student")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
   React.useEffect(() => {
-    if (isAuthenticated) router.push("/dashboard")
-  }, [isAuthenticated, router])
+    hasActiveSession()
+      .then((sessionActive) => {
+        if (sessionActive) router.push("/dashboard")
+      })
+      .catch(() => undefined)
+  }, [router])
 
-  const handleSignUp = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     if (!name.trim()) { setError("Please enter your name."); return }
     if (!email.trim()) { setError("Please enter your email."); return }
-    if (password.length < 6) { setError("Password must be at least 6 characters."); return }
+    if (password.length < 8) { setError("Password must be at least 8 characters."); return }
     setIsLoading(true)
-    setTimeout(() => {
-      const result = signup(name, email, password, role)
-      if (result.success) {
-        router.push("/dashboard")
-      } else {
-        setError(result.error || "Registration failed.")
-      }
+
+    const result = await signUpWithEmail({
+      fullName: name.trim(),
+      email: email.trim(),
+      password,
+      role: role === "teacher" ? "instructor" : "student",
+    })
+
+    if (result.error) {
+      setError(result.error)
       setIsLoading(false)
-    }, 600)
+      return
+    }
+
+    if (result.requiresEmailConfirmation) {
+      setError("Check your email to confirm your account before signing in.")
+      setIsLoading(false)
+      return
+    }
+
+    router.push("/dashboard")
+    router.refresh()
+  }
+
+  const handleGoogleSignUp = async () => {
+    setError("")
+    setIsLoading(true)
+    const result = await signUpWithGoogle()
+    if (result.error) {
+      setError(result.error)
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -119,7 +144,9 @@ export default function SignUpPage() {
           <div className="mb-8 flex gap-4">
             <button
               type="button"
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-secondary px-4 py-3 font-medium text-secondary-foreground shadow-md shadow-secondary/30 transition-opacity hover:opacity-90"
+              onClick={handleGoogleSignUp}
+              disabled={isLoading}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-secondary px-4 py-3 font-medium text-secondary-foreground shadow-md shadow-secondary/30 transition-opacity hover:opacity-90 disabled:opacity-60"
             >
               <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27 3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10 5.35 0 9.25-3.67 9.25-9.09 0-1.15-.15-1.81-.15-1.81z" />
@@ -149,8 +176,8 @@ export default function SignUpPage() {
             <p className="mb-2 text-sm font-medium text-muted-foreground">I am a:</p>
             <div className="flex gap-3">
               {([
-                { value: "student" as UserRole, label: "Student", desc: "Learn new skills" },
-                { value: "teacher" as UserRole, label: "Teacher", desc: "Create courses" },
+                { value: "student" as const, label: "Student", desc: "Learn new skills" },
+                { value: "teacher" as const, label: "Teacher", desc: "Create courses" },
               ]).map((r) => (
                 <button
                   key={r.value}

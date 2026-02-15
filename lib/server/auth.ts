@@ -20,17 +20,48 @@ export async function requireAuth(allowedRoles?: AppRole[]): Promise<AuthContext
     throw new Error("UNAUTHORIZED")
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("users")
-    .select("id, full_name, roles(name)")
-    .eq("id", user.id)
-    .single()
+  const userRoleFromMeta = user.user_metadata?.role
+  const fallbackRole = userRoleFromMeta === "admin" || userRoleFromMeta === "instructor" ? userRoleFromMeta : "student"
 
-  if (profileError || !profile?.roles || typeof profile.roles !== "object") {
+  const ensureProfile = async () => {
+    await supabase.from("profiles").upsert(
+      {
+        id: user.id,
+        email: user.email ?? "",
+        full_name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? "",
+        role: fallbackRole,
+      },
+      { onConflict: "id" },
+    )
+  }
+
+  let { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, full_name, role")
+    .eq("id", user.id)
+    .maybeSingle()
+
+  if (profileError) {
+    throw new Error("PROFILE_READ_FAILED")
+  }
+
+  if (!profile) {
+    await ensureProfile()
+    const result = await supabase
+      .from("profiles")
+      .select("id, full_name, role")
+      .eq("id", user.id)
+      .single()
+
+    profile = result.data
+    profileError = result.error
+  }
+
+  if (profileError || !profile) {
     throw new Error("PROFILE_NOT_FOUND")
   }
 
-  const roleName = (profile.roles as { name?: string }).name
+  const roleName = profile.role
   if (roleName !== "student" && roleName !== "instructor" && roleName !== "admin") {
     throw new Error("INVALID_ROLE")
   }
