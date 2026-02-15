@@ -8,9 +8,9 @@
     "start": "next start",
     "lint": "tsc --noEmit",
     "verify:supabase": "node scripts/006_verify_supabase_config.mjs",
-    "build:worker": "opennextjs-cloudflare build",
-    "preview:worker": "npm run build:worker && wrangler dev",
-    "deploy:worker": "npm run build:worker && wrangler deploy"
+    "build:worker": "pnpm exec opennextjs-cloudflare build",
+    "preview:worker": "pnpm run build:worker && pnpm exec wrangler dev",
+    "deploy:worker": "pnpm run build:worker && pnpm exec wrangler deploy"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

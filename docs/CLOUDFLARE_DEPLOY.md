@@ -37,9 +37,9 @@ binding = "ASSETS"
 
 ### `package.json` scripts
 
-- `build:worker`: `opennextjs-cloudflare build`
-- `preview:worker`: `npm run build:worker && wrangler dev`
-- `deploy:worker`: `npm run build:worker && wrangler deploy`
+- `build:worker`: `pnpm exec opennextjs-cloudflare build`
+- `preview:worker`: `pnpm run build:worker && pnpm exec wrangler dev`
+- `deploy:worker`: `pnpm run build:worker && pnpm exec wrangler deploy`
 
 ### Required dev dependencies
 
@@ -50,8 +50,8 @@ binding = "ASSETS"
 
 Deploy as a **Worker project** (not Pages):
 
-1. Build command: `npm run build:worker`
-2. Deploy command: `npm run deploy:worker`
+1. Build command: `pnpm run build:worker`
+2. Deploy command: `pnpm run deploy:worker`
 3. Ensure Worker entry is `.open-next/worker.js` (from `wrangler.toml`)
 4. Attach static assets from `.open-next/assets` via Wrangler assets binding
 
@@ -65,17 +65,17 @@ Set in Cloudflare Worker variables/secrets:
 
 ## Verification checklist
 
-1. `npm install`
-2. `npm run build:worker`
+1. `pnpm install`
+2. `pnpm run build:worker`
 3. Confirm generated files:
    - `.open-next/worker.js`
    - `.open-next/assets`
-4. `npm run preview:worker`
+4. `pnpm run preview:worker`
 5. Open `/` and confirm no 404.
 6. Validate API and auth flows:
    - `/api/me`
    - `/api/courses`
    - session refresh via middleware/proxy
-7. `npm run deploy:worker`
+7. `pnpm run deploy:worker`
 
 This removes all Vercel/Pages static assumptions and deploys dynamic Next.js correctly on Cloudflare Workers.
