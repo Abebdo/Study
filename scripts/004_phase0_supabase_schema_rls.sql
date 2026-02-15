@@ -223,37 +223,46 @@ CREATE TABLE public.payments (
 -- 7) Enable RLS on ALL tables
 -- ============================================================
 ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.roles FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.courses FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.sections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sections FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.lessons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lessons FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.videos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.videos FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.enrollments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.enrollments FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.progress FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.quizzes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quizzes FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.questions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.questions FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.quiz_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quiz_attempts FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payments FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.coupons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.coupons FORCE ROW LEVEL SECURITY;
 
 -- ============================================================
 -- 8) RLS Policies (Strict)
 -- ============================================================
 
 -- roles
-CREATE POLICY roles_admin_read ON public.roles
+CREATE POLICY roles_authenticated_read ON public.roles
   FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1
-      FROM public.users u
-      JOIN public.roles r ON r.id = u.role_id
-      WHERE u.id = auth.uid() AND r.name = 'admin'
-    )
-  );
+  USING (auth.role() = 'authenticated');
 
 -- users
 CREATE POLICY users_self_read ON public.users
@@ -262,12 +271,22 @@ CREATE POLICY users_self_read ON public.users
 
 CREATE POLICY users_self_insert ON public.users
   FOR INSERT
-  WITH CHECK (id = auth.uid());
+  WITH CHECK (
+    id = auth.uid()
+    AND role_id = (SELECT id FROM public.roles WHERE name = 'student')
+  );
 
 CREATE POLICY users_self_update ON public.users
   FOR UPDATE
   USING (id = auth.uid())
-  WITH CHECK (id = auth.uid());
+  WITH CHECK (
+    id = auth.uid()
+    AND role_id = (
+      SELECT me.role_id
+      FROM public.users me
+      WHERE me.id = auth.uid()
+    )
+  );
 
 CREATE POLICY users_admin_all ON public.users
   FOR ALL
@@ -548,22 +567,25 @@ CREATE POLICY enrollments_student_own_read ON public.enrollments
     )
   );
 
-CREATE POLICY enrollments_student_own_insert ON public.enrollments
+CREATE POLICY enrollments_admin_insert ON public.enrollments
   FOR INSERT
-  WITH CHECK (user_id = auth.uid());
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.users me JOIN public.roles rr ON rr.id = me.role_id
+      WHERE me.id = auth.uid() AND rr.name = 'admin'
+    )
+  );
 
 CREATE POLICY enrollments_admin_update_delete ON public.enrollments
   FOR UPDATE
   USING (
-    user_id = auth.uid()
-    OR EXISTS (
+    EXISTS (
       SELECT 1 FROM public.users me JOIN public.roles rr ON rr.id = me.role_id
       WHERE me.id = auth.uid() AND rr.name = 'admin'
     )
   )
   WITH CHECK (
-    user_id = auth.uid()
-    OR EXISTS (
+    EXISTS (
       SELECT 1 FROM public.users me JOIN public.roles rr ON rr.id = me.role_id
       WHERE me.id = auth.uid() AND rr.name = 'admin'
     )
@@ -572,8 +594,7 @@ CREATE POLICY enrollments_admin_update_delete ON public.enrollments
 CREATE POLICY enrollments_admin_delete ON public.enrollments
   FOR DELETE
   USING (
-    user_id = auth.uid()
-    OR EXISTS (
+    EXISTS (
       SELECT 1 FROM public.users me JOIN public.roles rr ON rr.id = me.role_id
       WHERE me.id = auth.uid() AND rr.name = 'admin'
     )
@@ -822,9 +843,14 @@ CREATE POLICY orders_student_own_read ON public.orders
     )
   );
 
-CREATE POLICY orders_student_own_insert ON public.orders
+CREATE POLICY orders_admin_insert ON public.orders
   FOR INSERT
-  WITH CHECK (user_id = auth.uid());
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.users me JOIN public.roles rr ON rr.id = me.role_id
+      WHERE me.id = auth.uid() AND rr.name = 'admin'
+    )
+  );
 
 CREATE POLICY orders_admin_update ON public.orders
   FOR UPDATE
@@ -922,6 +948,10 @@ COMMIT;
 -- SELECT set_config('request.jwt.claim.sub', '<student_a_uuid>', true);
 -- INSERT INTO public.courses (instructor_id, title) VALUES ('<student_a_uuid>', 'x'); -- expected: denied
 
+-- Case C2: Student cannot self-enroll directly (payment/enrollment bypass blocked)
+-- SELECT set_config('request.jwt.claim.sub', '<student_a_uuid>', true);
+-- INSERT INTO public.enrollments (user_id, course_id) VALUES ('<student_a_uuid>', '<course_uuid>'); -- expected: denied
+
 -- Case D: Instructor can manage only own course sections
 -- SELECT set_config('request.jwt.claim.sub', '<instructor_a_uuid>', true);
 -- UPDATE public.sections SET title='hack' WHERE id='<section_of_instructor_b>'; -- expected: denied
@@ -940,3 +970,8 @@ COMMIT;
 -- SELECT set_config('request.jwt.claim.sub', '<student_uuid>', true);
 -- UPDATE public.users SET role_id=(SELECT id FROM public.roles WHERE name='admin') WHERE id='<student_uuid>';
 -- expected: denied (unless admin session)
+
+-- Case H: Student cannot forge discounted order amounts
+-- SELECT set_config('request.jwt.claim.sub', '<student_uuid>', true);
+-- INSERT INTO public.orders (user_id, course_id, original_amount, discount_amount, final_amount, status)
+-- VALUES ('<student_uuid>', '<course_uuid>', 100, 100, 0, 'paid'); -- expected: denied

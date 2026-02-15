@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useState } from "react"
+import { use, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -74,8 +74,13 @@ export default function CheckoutPage({
     }, 2000)
   }
 
+  useEffect(() => {
+    if (isComplete && appliedDiscount) {
+      useDiscountCode(appliedDiscount.code)
+    }
+  }, [appliedDiscount, isComplete, useDiscountCode])
+
   if (isComplete) {
-    useDiscountCode(courseId) // Ensure useDiscountCode is called at the top level
     return (
       <div className="flex min-h-[80vh] items-center justify-center p-4">
         <div className="w-full max-w-md text-center">

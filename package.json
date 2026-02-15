@@ -6,7 +6,8 @@
     "dev": "next dev --turbo",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "verify:supabase": "node scripts/006_verify_supabase_config.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

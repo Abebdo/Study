@@ -180,7 +180,6 @@ export default function NotificationsPage() {
         ) : (
           filtered.map((notif) => {
             const { icon: Icon, color } = notifIcon(notif.type)
-            const Wrapper = notif.link ? Link : "div"
             return (
               <div
                 key={notif.id}
@@ -192,19 +191,35 @@ export default function NotificationsPage() {
                 <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${color}`}>
                   <Icon className="h-5 w-5" />
                 </div>
-                <Wrapper {...(notif.link ? { href: notif.link } : {})} className="min-w-0 flex-1" onClick={() => markAsRead(notif.id)}>
-                  <div className="mb-0.5 flex items-center gap-2">
-                    <h3 className={cn("text-sm font-semibold", notif.read ? "text-foreground" : "text-foreground")}>
-                      {notif.title}
-                    </h3>
-                    {!notif.read && <div className="h-2 w-2 rounded-full bg-secondary" />}
+                {notif.link ? (
+                  <Link href={notif.link} className="min-w-0 flex-1" onClick={() => markAsRead(notif.id)}>
+                    <div className="mb-0.5 flex items-center gap-2">
+                      <h3 className={cn("text-sm font-semibold", notif.read ? "text-foreground" : "text-foreground")}>
+                        {notif.title}
+                      </h3>
+                      {!notif.read && <div className="h-2 w-2 rounded-full bg-secondary" />}
+                    </div>
+                    <p className="mb-1 text-xs text-muted-foreground">{notif.message}</p>
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      {notif.time}
+                    </span>
+                  </Link>
+                ) : (
+                  <div className="min-w-0 flex-1" onClick={() => markAsRead(notif.id)}>
+                    <div className="mb-0.5 flex items-center gap-2">
+                      <h3 className={cn("text-sm font-semibold", notif.read ? "text-foreground" : "text-foreground")}>
+                        {notif.title}
+                      </h3>
+                      {!notif.read && <div className="h-2 w-2 rounded-full bg-secondary" />}
+                    </div>
+                    <p className="mb-1 text-xs text-muted-foreground">{notif.message}</p>
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      {notif.time}
+                    </span>
                   </div>
-                  <p className="mb-1 text-xs text-muted-foreground">{notif.message}</p>
-                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <Clock className="h-3 w-3" />
-                    {notif.time}
-                  </span>
-                </Wrapper>
+                )}
                 <button
                   type="button"
                   onClick={() => deleteNotification(notif.id)}

@@ -25,7 +25,37 @@ import { cn } from "@/lib/utils"
 
 type ContentTab = "content" | "settings" | "quiz"
 
-const initialModules = [
+type LessonType = "video" | "quiz" | "exercise"
+
+interface LessonItem {
+  id: number
+  title: string
+  type: LessonType
+  duration: string
+  videoUrl: string
+}
+
+interface ModuleItem {
+  id: number
+  title: string
+  expanded: boolean
+  lessons: LessonItem[]
+}
+
+interface QuizOption {
+  text: string
+  correct: boolean
+}
+
+interface QuizQuestion {
+  id: number
+  question: string
+  image: string | null
+  options: QuizOption[]
+}
+
+const initialModules: ModuleItem[] = [
+
   {
     id: 1,
     title: "Getting Started with HTML",
@@ -48,7 +78,7 @@ const initialModules = [
   },
 ]
 
-const initialQuizQuestions = [
+const initialQuizQuestions: QuizQuestion[] = [
   {
     id: 1,
     question: "What does HTML stand for?",
@@ -80,12 +110,12 @@ export default function CourseEditorPage({
 }) {
   const { id } = use(params)
   const [activeTab, setActiveTab] = useState<ContentTab>("content")
-  const [modules, setModules] = useState(initialModules)
-  const [quizQuestions, setQuizQuestions] = useState(initialQuizQuestions)
+  const [modules, setModules] = useState<ModuleItem[]>(initialModules)
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>(initialQuizQuestions)
   const [showAddLesson, setShowAddLesson] = useState<number | null>(null)
   const [showAddQuestion, setShowAddQuestion] = useState(false)
   const [newLessonTitle, setNewLessonTitle] = useState("")
-  const [newLessonType, setNewLessonType] = useState<"video" | "quiz" | "exercise">("video")
+  const [newLessonType, setNewLessonType] = useState<LessonType>("video")
   const [selectedQuiz, setSelectedQuiz] = useState<number | null>(null)
 
   const toggleModule = (moduleId: number) => {
