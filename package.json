@@ -8,8 +8,9 @@
     "start": "next start",
     "lint": "tsc --noEmit",
     "verify:supabase": "node scripts/006_verify_supabase_config.mjs",
-    "build:pages": "npx opennextjs-cloudflare build",
-    "deploy:pages": "npm run build:pages && wrangler pages deploy .open-next/assets"
+    "build:worker": "opennextjs-cloudflare build",
+    "preview:worker": "npm run build:worker && wrangler dev",
+    "deploy:worker": "npm run build:worker && wrangler deploy"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -72,7 +73,9 @@
     "@types/react-dom": "19.2.3",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
-    "typescript": "5.7.3"
+    "typescript": "5.7.3",
+    "@opennextjs/cloudflare": "^1.8.0",
+    "wrangler": "^4.39.0"
   },
   "pnpm": {
     "overrides": {
