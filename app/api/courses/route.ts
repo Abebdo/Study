@@ -35,7 +35,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth(["instructor", "admin"])
+    const auth = await requireAuth(["teacher", "admin"])
     const payload = createCourseSchema.parse(await request.json())
     const supabase = await createClient()
 

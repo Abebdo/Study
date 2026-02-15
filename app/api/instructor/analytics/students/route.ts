@@ -4,11 +4,11 @@ import { requireAuth } from "@/lib/server/auth"
 
 export async function GET() {
   try {
-    const auth = await requireAuth(["instructor", "admin"])
+    const auth = await requireAuth(["teacher", "admin"])
     const supabase = await createClient()
 
     let coursesQuery = supabase.from("courses").select("id")
-    if (auth.role === "instructor") {
+    if (auth.role === "teacher") {
       coursesQuery = coursesQuery.eq("instructor_id", auth.userId)
     }
 

@@ -4,7 +4,7 @@ import { requireAuth } from "@/lib/server/auth"
 
 export default async function TeacherLayout({ children }: { children: ReactNode }) {
   try {
-    await requireAuth(["instructor", "admin"])
+    await requireAuth(["teacher", "admin"])
     return <>{children}</>
   } catch {
     redirect("/dashboard")

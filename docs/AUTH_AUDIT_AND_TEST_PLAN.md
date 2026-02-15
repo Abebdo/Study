@@ -4,7 +4,7 @@ This project now uses Supabase Auth end-to-end for:
 - Email/password login.
 - Google OAuth login.
 - Password reset.
-- Server-side role checks for teacher/admin routes.
+- Server-side role checks for teacher/admin routes and role-based dashboard routing.
 
 ## Supabase dashboard settings to verify
 
@@ -32,7 +32,7 @@ This project now uses Supabase Auth end-to-end for:
 
 ## Database hardening applied in SQL migration
 
-Run `scripts/011_auth_hardening.sql` in Supabase SQL editor:
+Run `scripts/011_auth_hardening.sql` and `scripts/012_auth_role_teacher_migration.sql` in Supabase SQL editor:
 - Auto-create `profiles` record on `auth.users` insert.
 - Restrict `profiles` reads to self/admin.
 - Restrict enrollment reads to self, admin, or course instructor.
@@ -53,7 +53,7 @@ Run `scripts/011_auth_hardening.sql` in Supabase SQL editor:
    - Verify no silent failures; errors appear in UI.
 
 3. **Admin/teacher access test**
-   - Set role in `profiles.role` to `instructor` or `admin` for test user.
+   - Set role in `profiles.role` to `teacher` or `admin` for test user.
    - Access `/dashboard/teacher`.
    - Verify student users are redirected away.
 

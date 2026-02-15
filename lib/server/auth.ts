@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
-
-export type AppRole = "student" | "instructor" | "admin"
+import { ensureProfileForUser } from "@/lib/server/profiles"
+import { normalizeRole, type AppRole } from "@/lib/auth/roles"
 
 export interface AuthContext {
   userId: string
@@ -20,50 +20,23 @@ export async function requireAuth(allowedRoles?: AppRole[]): Promise<AuthContext
     throw new Error("UNAUTHORIZED")
   }
 
-  const userRoleFromMeta = user.user_metadata?.role
-  const fallbackRole = userRoleFromMeta === "admin" || userRoleFromMeta === "instructor" ? userRoleFromMeta : "student"
+  await ensureProfileForUser(user)
 
-  const ensureProfile = async () => {
-    await supabase.from("profiles").upsert(
-      {
-        id: user.id,
-        email: user.email ?? "",
-        full_name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? "",
-        role: fallbackRole,
-      },
-      { onConflict: "id" },
-    )
-  }
-
-  let { data: profile, error: profileError } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id, full_name, role")
     .eq("id", user.id)
-    .maybeSingle()
-
-  if (profileError) {
-    throw new Error("PROFILE_READ_FAILED")
-  }
-
-  if (!profile) {
-    await ensureProfile()
-    const result = await supabase
-      .from("profiles")
-      .select("id, full_name, role")
-      .eq("id", user.id)
-      .single()
-
-    profile = result.data
-    profileError = result.error
-  }
+    .single()
 
   if (profileError || !profile) {
     throw new Error("PROFILE_NOT_FOUND")
   }
 
-  const roleName = profile.role
-  if (roleName !== "student" && roleName !== "instructor" && roleName !== "admin") {
-    throw new Error("INVALID_ROLE")
+  const roleName = normalizeRole(profile.role)
+
+  // Best-effort migration path for older 'instructor' values.
+  if (profile.role !== roleName) {
+    await supabase.from("profiles").update({ role: roleName }).eq("id", user.id)
   }
 
   if (allowedRoles && !allowedRoles.includes(roleName)) {
