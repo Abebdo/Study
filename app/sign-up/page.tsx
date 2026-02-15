@@ -36,7 +36,7 @@ export default function SignUpPage() {
       fullName: name.trim(),
       email: email.trim(),
       password,
-      role: role === "teacher" ? "instructor" : "student",
+      role,
     })
 
     if (result.error) {

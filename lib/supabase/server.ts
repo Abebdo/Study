@@ -1,6 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr"
 import { cookies } from "next/headers"
-import { getSupabasePublicConfig } from "@/lib/supabase/config"
+import { assertSupabasePublicConfig } from "@/lib/supabase/config"
 
 type CookieToSet = {
   name: string
@@ -9,11 +9,7 @@ type CookieToSet = {
 }
 
 export async function createClient() {
-  const { url, anonKey, isConfigured } = getSupabasePublicConfig()
-  if (!isConfigured || !url || !anonKey) {
-    throw new Error("SUPABASE_NOT_CONFIGURED")
-  }
-
+  const { url, anonKey } = assertSupabasePublicConfig()
   const cookieStore = await cookies()
 
   return createServerClient(url, anonKey, {

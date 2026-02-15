@@ -10,7 +10,7 @@ const bodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAuth(["student", "admin", "instructor"])
+    await requireAuth(["student", "admin", "teacher"])
     const body = bodySchema.parse(await request.json())
     const supabase = await createClient()
 

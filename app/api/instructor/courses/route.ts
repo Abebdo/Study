@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 
 export async function GET() {
   try {
-    const auth = await requireAuth(["instructor", "admin"])
+    const auth = await requireAuth(["teacher", "admin"])
     const supabase = await createClient()
 
     let query = supabase
@@ -12,7 +12,7 @@ export async function GET() {
       .select("id, instructor_id, title, description, is_published, price, created_at, updated_at")
       .order("created_at", { ascending: false })
 
-    if (auth.role === "instructor") {
+    if (auth.role === "teacher") {
       query = query.eq("instructor_id", auth.userId)
     }
 
@@ -32,6 +32,6 @@ export async function GET() {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
       }
     }
-    return NextResponse.json({ error: "Failed to fetch instructor courses" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to fetch teacher courses" }, { status: 500 })
   }
 }
