@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { requireAuth } from "@/lib/server/auth"
 
 export async function GET() {
   try {
     const auth = await requireAuth(["instructor", "admin"])
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     let coursesQuery = supabase.from("courses").select("id")
     if (auth.role === "instructor") {
@@ -67,6 +67,9 @@ export async function GET() {
     })
   } catch (error) {
     if (error instanceof Error) {
+      if (error.message === "SUPABASE_ADMIN_NOT_CONFIGURED") {
+        return NextResponse.json({ error: "Supabase admin is not configured" }, { status: 500 })
+      }
       if (error.message === "UNAUTHORIZED") {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
       }
