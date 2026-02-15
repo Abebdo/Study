@@ -3,8 +3,9 @@
 This project deploys to **Cloudflare Workers** with **OpenNext**.
 
 ## Required commands
-- Build: `pnpm run build`
+- Build: `pnpm install && pnpm exec opennextjs-cloudflare build`
 - Deploy: `pnpm exec opennextjs-cloudflare deploy`
+- Version command: **leave empty / remove entirely**
 
 These are the only supported commands for production Workers deployment.
 
