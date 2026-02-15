@@ -1,32 +1,61 @@
-# Cloudflare Deploy Notes
+# Cloudflare Pages deploy notes (Next.js App Router)
 
-## Root cause from your log
-Cloudflare Pages failed at the final validation step because it was configured to expect an output directory named `dist`:
+## Root cause (from latest logs)
+The deployment loop was:
 
-- `Error: Output directory "dist" not found.`
+1. Cloudflare runs `npm run build`
+2. `build` runs `@cloudflare/next-on-pages`
+3. `next-on-pages` runs `vercel build`
+4. `vercel build` runs project `build` again
+5. recursion error: `vercel build must not recursively invoke itself`
 
-This repo builds with Next.js and outputs to `.next`.
+## Clean fix applied
+Instead of environment-flag workarounds, the project now configures Vercel's internal build command explicitly via `vercel.json`.
 
-## Fix applied in repo
-A `wrangler.toml` file was added with:
+### What changed
+- `package.json` keeps Cloudflare build as adapter command:
+  - `build`: `pnpm dlx @cloudflare/next-on-pages@1`
+  - `build:next`: `next build`
+- Added `vercel.json`:
+  - `buildCommand`: `pnpm run build:next`
 
-```toml
-pages_build_output_dir = ".next"
+So when `next-on-pages` invokes `vercel build`, Vercel executes `build:next` (plain Next build), not `build` again.
+That removes recursion deterministically.
+
+## Effective configuration
+
+### `package.json`
+```json
+{
+  "scripts": {
+    "build": "pnpm dlx @cloudflare/next-on-pages@1",
+    "build:next": "next build",
+    "build:pages": "pnpm dlx @cloudflare/next-on-pages@1"
+  }
+}
 ```
 
-This aligns Cloudflare output validation with the actual Next build output.
+### `vercel.json`
+```json
+{
+  "buildCommand": "pnpm run build:next"
+}
+```
 
-## Required Cloudflare project settings
-In Cloudflare Pages project settings:
+### `wrangler.toml`
+```toml
+name = "study-lms"
+compatibility_date = "2026-02-15"
+pages_build_output_dir = ".vercel/output/static"
+```
 
-- **Build command**: `npm run build`
-- **Build output directory**: leave empty (Wrangler config will be used) OR set to `.next`
+## Cloudflare Pages settings
+- Build command: `npm run build`
+- Build output directory: leave empty (Wrangler reads it) or `.vercel/output/static`
+- Framework preset: Next.js
 
-## Environment variables (required for real backend behavior)
-Set these in Cloudflare Pages/Workers variables:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (server only)
-
-Without these, middleware now safely no-ops (no crash), but backend endpoints that need Supabase will not function fully.
+## Verification checklist
+1. Log no longer contains recursive-invocation error.
+2. Log shows `vercel build` calling `pnpm run build:next`.
+3. `.vercel/output/static` is found.
+4. Deploy succeeds and root URL returns app, not 404.
