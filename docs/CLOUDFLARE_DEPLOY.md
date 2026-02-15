@@ -1,27 +1,28 @@
 # Cloudflare Pages deploy notes (Next.js App Router)
 
-## Root cause from the latest failing log
-The deployment failed due to **recursive build invocation**:
+## Root cause from the failing logs
+The build failed because of recursive invocation:
 
-1. Cloudflare runs `npm run build`.
-2. `build` ran `@cloudflare/next-on-pages`.
-3. `next-on-pages` runs `vercel build` internally.
-4. `vercel build` ran `pnpm run build` again.
-5. Because `build` still called `next-on-pages`, it recursively invoked itself and failed with:
+1. Cloudflare executes `npm run build`.
+2. `build` runs `@cloudflare/next-on-pages`.
+3. `next-on-pages` invokes `vercel build` internally.
+4. `vercel build` executes project `build` again.
+5. If `build` runs `next-on-pages` again, it loops and fails with:
    - `Error: vercel build must not recursively invoke itself`
 
-## Why this happened
-`build` was bound directly to `next-on-pages`, while `next-on-pages` itself depends on `vercel build`, which calls the project build script.
+## Why earlier guard was not enough
+Relying only on `VERCEL=1` is not always robust across nested process chains. In failing environments this variable may not be present as expected when script re-enters.
 
-## Fix applied
-A guard script now controls build behavior:
+## Fix applied (robust recursion guard)
+A dedicated marker env var is now injected by our build wrapper when launching `next-on-pages`:
 
-- Normal Cloudflare run (`npm run build`): run `pnpm dlx @cloudflare/next-on-pages@1`
-- Nested Vercel run (when `VERCEL=1`): run `next build` only
+- marker: `CF_PAGES_NEXT_ON_PAGES_INTERNAL=1`
+- if marker is present (or `VERCEL=1`) => run `next build`
+- otherwise => run `pnpm dlx @cloudflare/next-on-pages@1`
 
-This breaks the recursion and still produces the Pages adapter output.
+This guarantees the second entry into `npm run build` executes `next build` instead of re-invoking adapter CLI.
 
-### `package.json` (fixed)
+### `package.json` scripts
 ```json
 {
   "scripts": {
@@ -33,11 +34,11 @@ This breaks the recursion and still produces the Pages adapter output.
 }
 ```
 
-### `scripts/cloudflare-build.mjs` (new)
-- If `VERCEL=1` => executes `next build`
-- Otherwise => executes `pnpm dlx @cloudflare/next-on-pages@1`
+### `scripts/cloudflare-build.mjs`
+- non-nested: starts adapter with `CF_PAGES_NEXT_ON_PAGES_INTERNAL=1`
+- nested: runs `next build`
 
-### `wrangler.toml` (unchanged and correct)
+### `wrangler.toml`
 ```toml
 name = "study-lms"
 compatibility_date = "2026-02-15"
@@ -46,12 +47,11 @@ pages_build_output_dir = ".vercel/output/static"
 
 ## Cloudflare Pages settings
 - Build command: `npm run build`
-- Build output directory: keep empty (Wrangler-managed) or `.vercel/output/static`
+- Build output directory: empty (Wrangler-managed) or `.vercel/output/static`
 - Framework preset: Next.js
 
 ## Verification checklist
-After deploy:
-1. Build log no longer contains recursive invocation error.
-2. Build log reaches adapter completion successfully.
-3. `.vercel/output/static` is found by Cloudflare validation.
-4. Site and API routes load without Pages 404.
+1. Build log no longer contains `vercel build must not recursively invoke itself`.
+2. Build reaches adapter completion.
+3. `.vercel/output/static` exists and passes Pages validation.
+4. Production URL no longer returns Cloudflare 404 for app routes.
