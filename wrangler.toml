@@ -1,7 +1,12 @@
-name = "study-lms"
+name = "studyy-lms"
 main = ".open-next/worker.js"
+
 compatibility_date = "2026-02-15"
 compatibility_flags = ["nodejs_compat"]
+
+[vars]
+NEXT_PUBLIC_SUPABASE_URL = "set-in-dashboard"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "set-in-dashboard"
 
 [assets]
 binding = "ASSETS"
