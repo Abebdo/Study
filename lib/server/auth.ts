@@ -8,6 +8,11 @@ export interface AuthContext {
   fullName: string
 }
 
+/**
+ * Server-side auth guard used by API routes and restricted pages.
+ * It treats the Supabase session as the source of truth and only uses
+ * profiles for role/full-name enrichment.
+ */
 export async function requireAuth(allowedRoles?: AppRole[]): Promise<AuthContext> {
   const supabase = await createClient()
 
@@ -20,32 +25,33 @@ export async function requireAuth(allowedRoles?: AppRole[]): Promise<AuthContext
     throw new Error("UNAUTHORIZED")
   }
 
-  await ensureProfileForUser(user)
+  const fallbackRole = normalizeRole(user.user_metadata?.role)
+  const fallbackName = user.user_metadata?.full_name ?? user.user_metadata?.name ?? ""
 
-  const { data: profile, error: profileError } = await supabase
+  try {
+    await ensureProfileForUser(user)
+  } catch (error) {
+    console.warn("[requireAuth] could not upsert profile", {
+      userId: user.id,
+      error: error instanceof Error ? error.message : "unknown",
+    })
+  }
+
+  const { data: profile } = await supabase
     .from("profiles")
     .select("id, full_name, role")
     .eq("id", user.id)
-    .single()
+    .maybeSingle()
 
-  if (profileError || !profile) {
-    throw new Error("PROFILE_NOT_FOUND")
-  }
-
-  const roleName = normalizeRole(profile.role)
-
-  // Best-effort migration path for older 'instructor' values.
-  if (profile.role !== roleName) {
-    await supabase.from("profiles").update({ role: roleName }).eq("id", user.id)
-  }
+  const roleName = normalizeRole(profile?.role ?? fallbackRole)
 
   if (allowedRoles && !allowedRoles.includes(roleName)) {
     throw new Error("FORBIDDEN")
   }
 
   return {
-    userId: profile.id,
-    fullName: profile.full_name ?? "",
+    userId: profile?.id ?? user.id,
+    fullName: profile?.full_name ?? fallbackName,
     role: roleName,
   }
 }

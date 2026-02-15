@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import type { User } from "@supabase/supabase-js"
 import { getSupabasePublicConfig } from "@/lib/supabase/config"
 import { normalizeRole } from "@/lib/auth/roles"
 
@@ -12,6 +13,43 @@ type CookieToSet = {
 function homeByRole(role: ReturnType<typeof normalizeRole>) {
   if (role === "teacher") return "/dashboard/teacher"
   return "/dashboard"
+}
+
+async function ensureProfileInMiddleware(
+  supabase: ReturnType<typeof createServerClient>,
+  user: User,
+) {
+  const payload = {
+    id: user.id,
+    email: user.email ?? "",
+    full_name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? "",
+    role: normalizeRole(user.user_metadata?.role),
+  }
+
+  const existing = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle()
+
+  if (existing.data) {
+    return normalizeRole(existing.data.role)
+  }
+
+  const upsertAttempt = await supabase
+    .from("profiles")
+    .upsert(payload, { onConflict: "id" })
+
+  if (upsertAttempt.error) {
+    console.warn("[middleware] profile upsert skipped", {
+      userId: user.id,
+      error: upsertAttempt.error.message,
+    })
+  } else {
+    console.info("[middleware] created missing profile", { userId: user.id })
+  }
+
+  return payload.role
 }
 
 export async function updateSession(request: NextRequest) {
@@ -56,13 +94,8 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle()
-
-  const role = normalizeRole(profile?.role ?? user.user_metadata?.role)
+  // Session is source of truth. Missing/failed profile lookup should never log users out.
+  const role = await ensureProfileInMiddleware(supabase, user)
 
   if (onAuthPage) {
     const urlRef = request.nextUrl.clone()
