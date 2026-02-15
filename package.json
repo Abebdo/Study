@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbo",
-    "build": "opennextjs-cloudflare build",
+    "build": "pnpm exec opennextjs-cloudflare build",
     "start": "next start",
     "lint": "tsc --noEmit",
     "verify:supabase": "node scripts/006_verify_supabase_config.mjs",
-    "deploy": "opennextjs-cloudflare deploy"
+    "deploy": "pnpm exec opennextjs-cloudflare deploy"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
