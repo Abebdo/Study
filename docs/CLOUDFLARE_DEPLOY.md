@@ -1,32 +1,43 @@
-# Cloudflare Deploy Notes
+# Cloudflare Workers Deploy (OpenNext)
 
-## Root cause from your log
-Cloudflare Pages failed at the final validation step because it was configured to expect an output directory named `dist`:
+## Why Pages failed
+This project uses dynamic Next.js App Router features (API routes, middleware, server-side auth). Cloudflare Pages static output validation expects a static directory and fails with errors like:
 
-- `Error: Output directory "dist" not found.`
+- `Output directory .vercel/output/static not found`
 
-This repo builds with Next.js and outputs to `.next`.
+That happens because Pages is the wrong runtime target for this app.
 
-## Fix applied in repo
-A `wrangler.toml` file was added with:
+## What this repo now uses
+Deployment target is now **Cloudflare Workers + OpenNext**.
 
-```toml
-pages_build_output_dir = ".next"
-```
+- Build tool: `@opennextjs/cloudflare`
+- Worker entry output: `.open-next/worker.js`
+- Static assets output: `.open-next/assets`
 
-This aligns Cloudflare output validation with the actual Next build output.
+## Required commands
+Use these commands in CI / Cloudflare build settings:
 
-## Required Cloudflare project settings
-In Cloudflare Pages project settings:
+- **Build command**: `pnpm build`
+- **Deploy command**: `pnpm deploy`
 
-- **Build command**: `npm run build`
-- **Build output directory**: leave empty (Wrangler config will be used) OR set to `.next`
+`pnpm build` runs OpenNext and generates the Worker bundle + assets.
 
-## Environment variables (required for real backend behavior)
-Set these in Cloudflare Pages/Workers variables:
+## Wrangler configuration
+`wrangler.toml` is now configured for Workers runtime output (not Pages):
+
+- `main = ".open-next/worker.js"`
+- `assets.directory = ".open-next/assets"`
+- `compatibility_flags = ["nodejs_compat"]`
+
+## Supabase environment variables
+Set these as Cloudflare Worker environment variables/secrets:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (server only)
+- `SUPABASE_SERVICE_ROLE_KEY`
 
-Without these, middleware now safely no-ops (no crash), but backend endpoints that need Supabase will not function fully.
+This keeps middleware and API routes working with Supabase auth on Workers.
+
+## No billing-risk features enabled
+This setup does **not** require adding paid Cloudflare primitives (KV, R2, D1, Durable Objects) to run.
+It uses default OpenNext Worker output only.
