@@ -4,11 +4,10 @@ import React, { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Eye, EyeOff, GraduationCap, Layers, Globe, AlertCircle } from "lucide-react"
-import { usePlatform } from "@/lib/auth-context"
+import { hasActiveSession, signInWithEmail, signInWithGoogle } from "@/lib/auth-client"
 
 export default function SignInPage() {
   const router = useRouter()
-  const { login, isAuthenticated } = usePlatform()
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -17,37 +16,54 @@ export default function SignInPage() {
 
   // Redirect if already logged in
   React.useEffect(() => {
-    if (isAuthenticated) router.push("/dashboard")
-  }, [isAuthenticated, router])
+    hasActiveSession()
+      .then((sessionActive) => {
+        if (sessionActive) router.push("/dashboard")
+      })
+      .catch(() => undefined)
+  }, [router])
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     if (!email.trim()) { setError("Please enter your email."); return }
     if (!password.trim()) { setError("Please enter your password."); return }
     setIsLoading(true)
-    // Simulate network delay
-    setTimeout(() => {
-      const result = login(email, password)
-      if (result.success) {
-        router.push("/dashboard")
-      } else {
-        setError(result.error || "Login failed.")
-      }
+
+    const result = await signInWithEmail(email.trim(), password)
+    if (result.error) {
+      setError(result.error)
       setIsLoading(false)
-    }, 600)
+      return
+    }
+
+    router.push("/dashboard")
+    router.refresh()
   }
 
-  const handleQuickLogin = (userEmail: string) => {
+  const handleGoogleLogin = async () => {
+    setError("")
+    setIsLoading(true)
+    const result = await signInWithGoogle()
+    if (result.error) {
+      setError(result.error)
+      setIsLoading(false)
+    }
+  }
+
+  const handleQuickLogin = async (userEmail: string) => {
     setEmail(userEmail)
     setPassword("demo123")
     setError("")
     setIsLoading(true)
-    setTimeout(() => {
-      const result = login(userEmail, "demo123")
-      if (result.success) router.push("/dashboard")
+    const result = await signInWithEmail(userEmail, "demo123")
+    if (result.error) {
+      setError(result.error)
       setIsLoading(false)
-    }, 400)
+      return
+    }
+    router.push("/dashboard")
+    router.refresh()
   }
 
   return (
@@ -78,7 +94,9 @@ export default function SignInPage() {
           <div className="mb-8 flex gap-4">
             <button
               type="button"
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-medium text-primary-foreground shadow-md shadow-primary/30 transition-opacity hover:opacity-90"
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-medium text-primary-foreground shadow-md shadow-primary/30 transition-opacity hover:opacity-90 disabled:opacity-60"
             >
               <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27 3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10 5.35 0 9.25-3.67 9.25-9.09 0-1.15-.15-1.81-.15-1.81z" />
@@ -121,7 +139,7 @@ export default function SignInPage() {
                   Password
                 </label>
                 <Link
-                  href="#"
+                  href="/forgot-password"
                   className="text-sm font-medium text-primary hover:underline"
                 >
                   Forgot Password?
