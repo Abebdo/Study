@@ -1,54 +1,70 @@
 # Cloudflare Pages deploy notes (Next.js App Router)
 
-## Root cause of the 404
-The project was deployed as if `.next` were a static website folder by setting:
+## What actually failed (from your log)
+Cloudflare read `wrangler.toml` and expected this output directory:
 
 ```toml
-pages_build_output_dir = ".next"
+pages_build_output_dir = ".vercel/output/static"
 ```
 
-in `wrangler.toml`.
+Then it executed the project build command as:
 
-That is incorrect for this app. `.next` is an internal Next.js build directory (server bundles, manifests, runtime files), **not** a publishable static site root. It does not expose a top-level `index.html` for Cloudflare Pages static hosting, so the deployed URL resolves to Cloudflare's 404 page.
+```bash
+npm run build
+```
+
+But at that moment `build` was `next build`, which only creates `.next` and **does not** create `.vercel/output/static`.
+So validation failed with:
+
+- `Error: Output directory ".vercel/output/static" not found.`
+
+## Root cause
+A mismatch between:
+- expected output directory (`.vercel/output/static`), and
+- actual command executed by Cloudflare (`npm run build` -> `next build`).
+
+This is why the build failed even though Next.js compilation itself succeeded.
 
 ## Framework/runtime facts for this repo
-- Framework: **Next.js 16** with the **App Router** (`app/` directory).
-- Rendering model: mixed static + dynamic server routes (`ƒ` routes, API route handlers under `app/api/*`).
-- Because API routes and dynamic server rendering are present, this is **not** a pure static-export app.
+- Framework: **Next.js 16**
+- Router: **App Router** (`app/`)
+- Rendering: mixed static + dynamic (`ƒ` routes + `app/api/*` route handlers)
+- `next.config.mjs` does **not** use `output: "export"`, so this is not static-export mode.
 
-## Correct Cloudflare Pages build setup
-Use the Cloudflare Next.js adapter output (`.vercel/output`) instead of `.next`.
+## Production-ready fix applied
+Make `npm run build` produce the Cloudflare Pages adapter output directly.
 
-### `package.json` scripts
+### `package.json` (fixed)
 ```json
 {
   "scripts": {
-    "build": "next build",
+    "build": "npx @cloudflare/next-on-pages@1",
+    "build:next": "next build",
     "build:pages": "npx @cloudflare/next-on-pages@1",
-    "deploy:pages": "npm run build && npm run build:pages"
+    "deploy:pages": "npm run build"
   }
 }
 ```
 
-### `wrangler.toml`
+### `wrangler.toml` (kept correct)
 ```toml
 name = "study-lms"
 compatibility_date = "2026-02-15"
 pages_build_output_dir = ".vercel/output/static"
 ```
 
-### Cloudflare Pages project settings
-- Build command: `npm run deploy:pages`
-- Build output directory: leave empty (Wrangler config), or `.vercel/output/static`
+## Cloudflare Pages settings to use
+- Build command: `npm run build`
+- Build output directory: leave empty (Wrangler is used) OR `.vercel/output/static`
 - Framework preset: **Next.js**
 
 ## Verification checklist
-After running `npm run deploy:pages` in CI/local:
+After build in CI or locally:
 
 1. `.vercel/output/static` exists.
 2. `.vercel/output/static/index.html` exists.
-3. `.vercel/output/functions` exists (for dynamic/API routes).
-4. Cloudflare deploy logs reference `.vercel/output/static` (not `.next`).
+3. `.vercel/output/functions` exists.
+4. Cloudflare log no longer shows `Output directory ... not found`.
 
 ## Required environment variables
 - `NEXT_PUBLIC_SUPABASE_URL`
