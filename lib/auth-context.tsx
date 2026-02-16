@@ -95,6 +95,38 @@ const PlatformContext = createContext<PlatformContextType | undefined>(undefined
 
 const FAVORITES_STORAGE_KEY = "eduplatform_favorites_by_user"
 const PLATFORM_STATE_STORAGE_KEY = "eduplatform_platform_state_v1"
+const DEMO_MODE_ENABLED = process.env.NEXT_PUBLIC_DEMO_MODE === "true"
+
+interface AuthMePayload {
+  userId: string
+  role: UserRole
+  fullName: string
+  email?: string
+}
+
+const DEFAULT_USER_SETTINGS: User["settings"] = {
+  language: "English",
+  theme: "light",
+  notifications: {
+    courseUpdates: true,
+    assignments: true,
+    messages: true,
+    promotions: false,
+    weeklyReport: true,
+    achievements: true,
+    liveReminders: true,
+    aiSuggestions: true,
+  },
+  privacy: { showProfile: true, showProgress: true, showActivity: true },
+  ai: { enabled: true, suggestions: true, autoSummarize: false },
+}
+
+function displayNameFromAuth(me: AuthMePayload, fallbackName?: string) {
+  if (me.fullName?.trim()) return me.fullName.trim()
+  if (fallbackName?.trim()) return fallbackName.trim()
+  if (me.email?.includes("@")) return me.email.split("@")[0]
+  return "Learner"
+}
 
 interface PersistedPlatformState {
   currentUser: User | null
@@ -110,15 +142,15 @@ interface PersistedPlatformState {
 
 export function PlatformProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [allUsers, setAllUsers] = useState<User[]>(defaultUsers)
-  const [enrollments, setEnrollments] = useState<Enrollment[]>(defaultEnrollments)
-  const [notifications, setNotifications] = useState<Notification[]>(defaultNotifications)
-  const [conversations, setConversations] = useState<Conversation[]>(defaultConversations)
-  const [messages, setMessages] = useState<Message[]>(defaultMessages)
+  const [allUsers, setAllUsers] = useState<User[]>(DEMO_MODE_ENABLED ? defaultUsers : [])
+  const [enrollments, setEnrollments] = useState<Enrollment[]>(DEMO_MODE_ENABLED ? defaultEnrollments : [])
+  const [notifications, setNotifications] = useState<Notification[]>(DEMO_MODE_ENABLED ? defaultNotifications : [])
+  const [conversations, setConversations] = useState<Conversation[]>(DEMO_MODE_ENABLED ? defaultConversations : [])
+  const [messages, setMessages] = useState<Message[]>(DEMO_MODE_ENABLED ? defaultMessages : [])
   const [favorites, setFavorites] = useState<number[]>([])
-  const [liveSessions, setLiveSessions] = useState<LiveSession[]>(defaultLiveSessions)
-  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>(defaultDiscountCodes)
-  const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements)
+  const [liveSessions, setLiveSessions] = useState<LiveSession[]>(DEMO_MODE_ENABLED ? defaultLiveSessions : [])
+  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>(DEMO_MODE_ENABLED ? defaultDiscountCodes : [])
+  const [achievements, setAchievements] = useState<Achievement[]>(DEMO_MODE_ENABLED ? defaultAchievements : [])
   const [favoritesHydrated, setFavoritesHydrated] = useState(false)
   const [platformStateHydrated, setPlatformStateHydrated] = useState(false)
 
@@ -183,16 +215,82 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     achievements,
   ])
 
+  useEffect(() => {
+    if (!platformStateHydrated || typeof window === "undefined") return
+
+    const syncSessionUser = async () => {
+      try {
+        const response = await fetch("/api/me", { credentials: "include" })
+        if (!response.ok) {
+          if (response.status === 401 && !DEMO_MODE_ENABLED) {
+            setCurrentUser(null)
+          }
+          return
+        }
+
+        const payload = (await response.json()) as { user: AuthMePayload }
+        const me = payload.user
+        setCurrentUser(prev => {
+          const normalizedUser: User = {
+            id: me.userId,
+            name: displayNameFromAuth(me, prev?.name),
+            email: me.email ?? prev?.email ?? "",
+            role: me.role,
+            bio: prev?.bio,
+            avatar: prev?.avatar,
+            joinedAt: prev?.joinedAt ?? new Date().toISOString().split("T")[0],
+            isPremium: prev?.isPremium ?? false,
+            streak: prev?.streak ?? 0,
+            totalHoursLearned: prev?.totalHoursLearned ?? 0,
+            settings: prev?.settings ?? DEFAULT_USER_SETTINGS,
+          }
+          return normalizedUser
+        })
+
+        setAllUsers(prev => {
+          const current = prev.find(u => u.id === me.userId)
+          const merged: User = {
+            id: me.userId,
+            name: displayNameFromAuth(me, current?.name),
+            email: me.email ?? current?.email ?? "",
+            role: me.role,
+            bio: current?.bio,
+            avatar: current?.avatar,
+            joinedAt: current?.joinedAt ?? new Date().toISOString().split("T")[0],
+            isPremium: current?.isPremium ?? false,
+            streak: current?.streak ?? 0,
+            totalHoursLearned: current?.totalHoursLearned ?? 0,
+            settings: current?.settings ?? DEFAULT_USER_SETTINGS,
+          }
+
+          if (!current) return [...prev, merged]
+          return prev.map(u => (u.id === me.userId ? merged : u))
+        })
+      } catch {
+        if (!DEMO_MODE_ENABLED) setCurrentUser(null)
+      }
+    }
+
+    void syncSessionUser()
+  }, [platformStateHydrated])
+
   // ---- AUTH ----
   const login = useCallback((email: string, _password: string) => {
     const user = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase())
-    if (!user) return { success: false, error: "User not found. Please check your email." }
+    if (!user) {
+      if (!DEMO_MODE_ENABLED) return { success: false, error: "Use Supabase Sign-In flow to authenticate this account." }
+      return { success: false, error: "User not found. Please check your email." }
+    }
     // In a real app, we'd verify password hash. For demo, any password works.
     setCurrentUser(user)
     return { success: true }
   }, [allUsers])
 
   const signup = useCallback((name: string, email: string, _password: string, role: UserRole) => {
+    if (!DEMO_MODE_ENABLED) {
+      return { success: false, error: "Use Supabase Sign-Up flow to create a new account." }
+    }
+
     if (allUsers.find(u => u.email.toLowerCase() === email.toLowerCase())) {
       return { success: false, error: "Email already registered." }
     }
@@ -224,6 +322,9 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     setCurrentUser(null)
+    if (typeof window !== "undefined") {
+      void import("@/lib/supabase/client").then(({ createClient }) => createClient().auth.signOut()).catch(() => undefined)
+    }
   }, [])
 
   useEffect(() => {

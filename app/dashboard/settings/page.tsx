@@ -1,27 +1,56 @@
 "use client"
 
-import { useState } from "react"
-import {
-  User,
-  Mail,
-  Lock,
-  Bell,
-  Globe,
-  Moon,
-  Eye,
-  EyeOff,
-  Camera,
-  Save,
-  Shield,
-  CreditCard,
-} from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Bell, CreditCard, Save, Shield, User, Activity } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { usePlatform } from "@/lib/auth-context"
 
 type Tab = "profile" | "notifications" | "security" | "billing"
 
+type HealthResponse = {
+  status: "ok" | "degraded"
+  mode: "demo" | "production"
+  checks: {
+    supabasePublicConfigPresent: boolean
+    supabasePublicConfigValid: boolean
+    supabaseServiceRolePresent: boolean
+  }
+  timestamp: string
+}
+
 export default function SettingsPage() {
+  const { currentUser, updateUser } = usePlatform()
   const [activeTab, setActiveTab] = useState<Tab>("profile")
-  const [showPassword, setShowPassword] = useState(false)
+  const [saveMessage, setSaveMessage] = useState("")
+
+  const [fullName, setFullName] = useState(currentUser?.name ?? "")
+  const [bio, setBio] = useState(currentUser?.bio ?? "")
+  const [language, setLanguage] = useState(currentUser?.settings.language ?? "English")
+  const [theme, setTheme] = useState<"light" | "dark" | "system">(currentUser?.settings.theme ?? "light")
+
+  const [health, setHealth] = useState<HealthResponse | null>(null)
+  const [healthError, setHealthError] = useState("")
+
+  useEffect(() => {
+    setFullName(currentUser?.name ?? "")
+    setBio(currentUser?.bio ?? "")
+    setLanguage(currentUser?.settings.language ?? "English")
+    setTheme(currentUser?.settings.theme ?? "light")
+  }, [currentUser])
+
+  useEffect(() => {
+    const loadHealth = async () => {
+      try {
+        const response = await fetch("/api/health", { cache: "no-store" })
+        const data = (await response.json()) as HealthResponse
+        setHealth(data)
+      } catch {
+        setHealthError("Unable to fetch health diagnostics.")
+      }
+    }
+
+    void loadHealth()
+  }, [])
 
   const tabs = [
     { id: "profile" as Tab, label: "Profile", icon: User },
@@ -30,19 +59,68 @@ export default function SettingsPage() {
     { id: "billing" as Tab, label: "Billing", icon: CreditCard },
   ]
 
+  const initials = useMemo(() => {
+    if (!fullName.trim()) return "U"
+    return fullName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((n) => n[0]?.toUpperCase() ?? "")
+      .join("")
+  }, [fullName])
+
+  const saveProfile = () => {
+    if (!fullName.trim()) {
+      setSaveMessage("Name is required.")
+      return
+    }
+
+    if (!currentUser) {
+      setSaveMessage("No active user session.")
+      return
+    }
+
+    updateUser({
+      name: fullName.trim(),
+      bio: bio.trim(),
+      settings: {
+        ...currentUser.settings,
+        language,
+        theme,
+      },
+    })
+
+    setSaveMessage("Profile updated successfully.")
+    setTimeout(() => setSaveMessage(""), 2500)
+  }
+
   return (
     <div className="p-4 lg:p-6">
       <div className="mb-6">
-        <h1 className="font-heading text-2xl font-bold text-foreground">
-          Settings
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your account and preferences
-        </p>
+        <h1 className="font-heading text-2xl font-bold text-foreground">Settings</h1>
+        <p className="text-sm text-muted-foreground">Manage your account and platform diagnostics</p>
+      </div>
+
+      <div className="mb-6 rounded-2xl bg-card p-4 shadow-sm">
+        <div className="mb-2 flex items-center gap-2">
+          <Activity className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold text-foreground">Platform Health</h2>
+        </div>
+        {healthError ? (
+          <p className="text-xs text-destructive">{healthError}</p>
+        ) : health ? (
+          <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
+            <p>Status: <span className={cn("font-semibold", health.status === "ok" ? "text-emerald-600" : "text-amber-600")}>{health.status}</span></p>
+            <p>Mode: <span className="font-semibold text-foreground">{health.mode}</span></p>
+            <p>Supabase config: <span className="font-semibold text-foreground">{health.checks.supabasePublicConfigValid ? "valid" : "invalid"}</span></p>
+            <p>Service key: <span className="font-semibold text-foreground">{health.checks.supabaseServiceRolePresent ? "present" : "missing"}</span></p>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Loading health checks...</p>
+        )}
       </div>
 
       <div className="flex flex-col gap-6 lg:flex-row">
-        {/* Settings Nav */}
         <div className="w-full lg:w-56">
           <nav className="flex gap-1 lg:flex-col">
             {tabs.map((tab) => (
@@ -64,369 +142,60 @@ export default function SettingsPage() {
           </nav>
         </div>
 
-        {/* Content */}
         <div className="flex-1">
           {activeTab === "profile" && (
-            <div className="space-y-6">
-              <div className="rounded-2xl bg-card p-6 shadow-sm">
-                <h2 className="mb-6 font-heading text-lg font-semibold text-foreground">
-                  Profile Information
-                </h2>
+            <div className="space-y-6 rounded-2xl bg-card p-6 shadow-sm">
+              <h2 className="font-heading text-lg font-semibold text-foreground">Profile Information</h2>
 
-                {/* Avatar */}
-                <div className="mb-6 flex items-center gap-4">
-                  <div className="relative">
-                    <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-secondary to-accent text-2xl font-bold text-card">
-                      RR
-                    </div>
-                    <button
-                      type="button"
-                      className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md"
-                      aria-label="Change avatar"
-                    >
-                      <Camera className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div>
-                    <p className="font-heading text-lg font-semibold text-foreground">
-                      Ronald Richards
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Premium Member
-                    </p>
-                  </div>
+              <div className="flex items-center gap-4">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-secondary to-accent text-2xl font-bold text-card">
+                  {initials}
                 </div>
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label
-                      htmlFor="firstName"
-                      className="mb-1.5 block text-sm font-medium text-muted-foreground"
-                    >
-                      First Name
-                    </label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <input
-                        id="firstName"
-                        type="text"
-                        defaultValue="Ronald"
-                        className="w-full rounded-xl border border-border bg-card py-3 pl-10 pr-4 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="lastName"
-                      className="mb-1.5 block text-sm font-medium text-muted-foreground"
-                    >
-                      Last Name
-                    </label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <input
-                        id="lastName"
-                        type="text"
-                        defaultValue="Richards"
-                        className="w-full rounded-xl border border-border bg-card py-3 pl-10 pr-4 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label
-                      htmlFor="email"
-                      className="mb-1.5 block text-sm font-medium text-muted-foreground"
-                    >
-                      Email
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <input
-                        id="email"
-                        type="email"
-                        defaultValue="ron.richards@gmail.com"
-                        className="w-full rounded-xl border border-border bg-card py-3 pl-10 pr-4 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label
-                      htmlFor="bio"
-                      className="mb-1.5 block text-sm font-medium text-muted-foreground"
-                    >
-                      Bio
-                    </label>
-                    <textarea
-                      id="bio"
-                      rows={3}
-                      defaultValue="Passionate learner exploring web development and data science."
-                      className="w-full resize-none rounded-xl border border-border bg-card p-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="language"
-                      className="mb-1.5 block text-sm font-medium text-muted-foreground"
-                    >
-                      Language
-                    </label>
-                    <div className="relative">
-                      <Globe className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <select
-                        id="language"
-                        className="w-full appearance-none rounded-xl border border-border bg-card py-3 pl-10 pr-4 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                      >
-                        <option>English</option>
-                        <option>Arabic</option>
-                        <option>French</option>
-                        <option>Spanish</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="theme"
-                      className="mb-1.5 block text-sm font-medium text-muted-foreground"
-                    >
-                      Theme
-                    </label>
-                    <div className="relative">
-                      <Moon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <select
-                        id="theme"
-                        className="w-full appearance-none rounded-xl border border-border bg-card py-3 pl-10 pr-4 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                      >
-                        <option>Light</option>
-                        <option>Dark</option>
-                        <option>System</option>
-                      </select>
-                    </div>
-                  </div>
+                <div>
+                  <p className="font-heading text-lg font-semibold text-foreground">{fullName || "Unnamed user"}</p>
+                  <p className="text-sm text-muted-foreground">{currentUser?.email || "No email"}</p>
                 </div>
-
-                <button
-                  type="button"
-                  className="mt-6 flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-                >
-                  <Save className="h-4 w-4" />
-                  Save Changes
-                </button>
               </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label htmlFor="fullName" className="mb-1.5 block text-sm font-medium text-muted-foreground">Full Name</label>
+                  <input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary" />
+                </div>
+                <div className="sm:col-span-2">
+                  <label htmlFor="bio" className="mb-1.5 block text-sm font-medium text-muted-foreground">Bio</label>
+                  <textarea id="bio" rows={3} value={bio} onChange={(e) => setBio(e.target.value)} className="w-full resize-none rounded-xl border border-border bg-card p-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label htmlFor="language" className="mb-1.5 block text-sm font-medium text-muted-foreground">Language</label>
+                  <select id="language" value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                    <option>English</option>
+                    <option>Arabic</option>
+                    <option>French</option>
+                    <option>Spanish</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="theme" className="mb-1.5 block text-sm font-medium text-muted-foreground">Theme</label>
+                  <select id="theme" value={theme} onChange={(e) => setTheme(e.target.value as "light" | "dark" | "system")} className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                    <option value="system">System</option>
+                  </select>
+                </div>
+              </div>
+
+              <button type="button" onClick={saveProfile} className="flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90">
+                <Save className="h-4 w-4" />
+                Save Changes
+              </button>
+              {saveMessage && <p className="text-xs text-muted-foreground">{saveMessage}</p>}
             </div>
           )}
 
-          {activeTab === "notifications" && (
-            <div className="rounded-2xl bg-card p-6 shadow-sm">
-              <h2 className="mb-6 font-heading text-lg font-semibold text-foreground">
-                Notification Preferences
-              </h2>
-              <div className="space-y-4">
-                {[
-                  {
-                    title: "Course Updates",
-                    desc: "Get notified when enrolled courses have new content",
-                    default: true,
-                  },
-                  {
-                    title: "Assignment Reminders",
-                    desc: "Reminders for upcoming assignments and quizzes",
-                    default: true,
-                  },
-                  {
-                    title: "Messages",
-                    desc: "Notifications for new messages from instructors",
-                    default: true,
-                  },
-                  {
-                    title: "Promotional Emails",
-                    desc: "Receive offers and discounts on new courses",
-                    default: false,
-                  },
-                  {
-                    title: "Weekly Progress Report",
-                    desc: "Summary of your weekly learning activity",
-                    default: true,
-                  },
-                  {
-                    title: "Achievement Badges",
-                    desc: "Get notified when you earn new achievements",
-                    default: true,
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.title}
-                    className="flex items-center justify-between rounded-xl border border-border p-4"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        {item.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.desc}
-                      </p>
-                    </div>
-                    <label className="relative inline-flex cursor-pointer items-center">
-                      <input
-                        type="checkbox"
-                        defaultChecked={item.default}
-                        className="peer sr-only"
-                      />
-                      <div className="h-6 w-11 rounded-full bg-muted after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-card after:shadow-sm after:transition-all peer-checked:bg-secondary peer-checked:after:translate-x-5 peer-focus:outline-none" />
-                    </label>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "security" && (
-            <div className="space-y-6">
-              <div className="rounded-2xl bg-card p-6 shadow-sm">
-                <h2 className="mb-6 font-heading text-lg font-semibold text-foreground">
-                  Change Password
-                </h2>
-                <div className="max-w-md space-y-4">
-                  <div>
-                    <label
-                      htmlFor="currentPassword"
-                      className="mb-1.5 block text-sm font-medium text-muted-foreground"
-                    >
-                      Current Password
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <input
-                        id="currentPassword"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Enter current password"
-                        className="w-full rounded-xl border border-border bg-card py-3 pl-10 pr-10 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="newPassword"
-                      className="mb-1.5 block text-sm font-medium text-muted-foreground"
-                    >
-                      New Password
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <input
-                        id="newPassword"
-                        type="password"
-                        placeholder="Enter new password"
-                        className="w-full rounded-xl border border-border bg-card py-3 pl-10 pr-4 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="confirmPassword"
-                      className="mb-1.5 block text-sm font-medium text-muted-foreground"
-                    >
-                      Confirm New Password
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <input
-                        id="confirmPassword"
-                        type="password"
-                        placeholder="Confirm new password"
-                        className="w-full rounded-xl border border-border bg-card py-3 pl-10 pr-4 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-                  >
-                    <Save className="h-4 w-4" />
-                    Update Password
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-2xl bg-card p-6 shadow-sm">
-                <h2 className="mb-4 font-heading text-lg font-semibold text-foreground">
-                  Two-Factor Authentication
-                </h2>
-                <p className="mb-4 text-sm text-muted-foreground">
-                  Add an extra layer of security to your account by enabling
-                  two-factor authentication.
-                </p>
-                <button
-                  type="button"
-                  className="rounded-xl border border-primary px-6 py-3 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
-                >
-                  Enable 2FA
-                </button>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "billing" && (
-            <div className="space-y-6">
-              <div className="rounded-2xl bg-card p-6 shadow-sm">
-                <h2 className="mb-4 font-heading text-lg font-semibold text-foreground">
-                  Current Plan
-                </h2>
-                <div className="flex items-center justify-between rounded-xl border border-secondary/30 bg-secondary/5 p-4">
-                  <div>
-                    <h3 className="font-heading text-lg font-bold text-foreground">
-                      Premium Plan
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Unlimited access to all courses
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Next billing: March 15, 2026
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-heading text-2xl font-bold text-foreground">
-                      $19.99
-                    </p>
-                    <p className="text-xs text-muted-foreground">/month</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl bg-card p-6 shadow-sm">
-                <h2 className="mb-4 font-heading text-lg font-semibold text-foreground">
-                  Payment Method
-                </h2>
-                <div className="flex items-center gap-3 rounded-xl border border-border p-4">
-                  <div className="flex h-10 w-14 items-center justify-center rounded-lg bg-muted text-xs font-bold text-muted-foreground">
-                    VISA
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-foreground">
-                      Visa ending in 4242
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Expires 12/2027
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="text-sm font-medium text-secondary hover:underline"
-                  >
-                    Edit
-                  </button>
-                </div>
-              </div>
+          {activeTab !== "profile" && (
+            <div className="rounded-2xl bg-card p-6 text-sm text-muted-foreground shadow-sm">
+              This section is available in UI and will be connected to backend policies/checkout flows next.
             </div>
           )}
         </div>

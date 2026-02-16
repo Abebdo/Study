@@ -45,21 +45,19 @@ export function AppSidebar() {
   const { currentUser, logout, unreadNotificationCount, totalUnreadMessages, isTeacher, isAdmin } = usePlatform()
 
   return (
-    <aside className="sticky top-0 flex h-screen w-20 flex-col items-center justify-between bg-card py-6 lg:w-64 lg:items-start lg:px-5">
+    <aside className="sticky top-0 flex h-screen w-64 flex-col justify-between bg-card px-4 py-6">
       {/* Logo */}
       <div className="flex items-center gap-2 px-2">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
           <GraduationCap className="h-5 w-5 text-secondary-foreground" />
         </div>
-        <span className="hidden font-heading text-lg font-bold text-foreground lg:block">
-          EduPlatform
-        </span>
+        <span className="font-heading text-lg font-bold text-foreground">EduPlatform</span>
       </div>
 
       {/* User Info */}
       {currentUser && (
         <div className="mt-4 w-full px-1">
-          <div className="hidden items-center gap-3 rounded-xl bg-muted px-3 py-2.5 lg:flex">
+          <div className="flex items-center gap-3 rounded-xl bg-muted px-3 py-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-secondary to-accent text-xs font-bold text-card">
               {currentUser.name.split(" ").map(n => n[0]).join("")}
             </div>
@@ -68,16 +66,11 @@ export function AppSidebar() {
               <p className="truncate text-[10px] capitalize text-muted-foreground">{currentUser.role}{currentUser.isPremium ? " - Premium" : ""}</p>
             </div>
           </div>
-          <div className="flex justify-center lg:hidden">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-secondary to-accent text-xs font-bold text-card">
-              {currentUser.name.split(" ").map(n => n[0]).join("")}
-            </div>
-          </div>
         </div>
       )}
 
       {/* Navigation */}
-      <nav className="flex flex-1 flex-col items-center gap-0.5 overflow-y-auto py-4 lg:w-full lg:items-stretch">
+      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto py-4">
         {/* Student Navigation */}
         {studentNav.map((item) => {
           const isActive =
@@ -90,17 +83,17 @@ export function AppSidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "group flex items-center justify-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all lg:justify-start",
+                "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
                 isActive
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
               <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
-              <span className="hidden lg:block">{item.label}</span>
+              <span>{item.label}</span>
               {badge > 0 && (
                 <span className={cn(
-                  "ml-auto hidden h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold lg:flex",
+                  "ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold",
                   isActive ? "bg-card/20 text-primary-foreground" : "bg-accent text-accent-foreground"
                 )}>{badge}</span>
               )}
@@ -111,13 +104,10 @@ export function AppSidebar() {
         {/* Teacher Section Divider */}
         {(isTeacher || isAdmin) && (
           <>
-            <div className="my-2 hidden items-center gap-2 px-3 lg:flex">
+            <div className="my-2 flex items-center gap-2 px-3">
               <div className="h-px flex-1 bg-border" />
               <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Teacher</span>
               <div className="h-px flex-1 bg-border" />
-            </div>
-            <div className="my-1 flex justify-center lg:hidden">
-              <div className="h-px w-8 bg-border" />
             </div>
             {teacherNav.map((item) => {
               const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== "/dashboard/teacher/live")
@@ -126,14 +116,14 @@ export function AppSidebar() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "group flex items-center justify-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all lg:justify-start",
+                    "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
                     isActive
                       ? "bg-secondary text-secondary-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
-                  <span className="hidden lg:block">{item.label}</span>
+                  <span>{item.label}</span>
                 </Link>
               )
             })}
@@ -143,7 +133,7 @@ export function AppSidebar() {
         {/* Admin Section */}
         {isAdmin && (
           <>
-            <div className="my-2 hidden items-center gap-2 px-3 lg:flex">
+            <div className="my-2 flex items-center gap-2 px-3">
               <div className="h-px flex-1 bg-border" />
               <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Admin</span>
               <div className="h-px flex-1 bg-border" />
@@ -155,14 +145,14 @@ export function AppSidebar() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "group flex items-center justify-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all lg:justify-start",
+                    "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
                     isActive
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
-                  <span className="hidden lg:block">{item.label}</span>
+                  <span>{item.label}</span>
                 </Link>
               )
             })}
@@ -177,10 +167,10 @@ export function AppSidebar() {
           logout()
           window.location.href = "/sign-in"
         }}
-        className="flex items-center justify-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive lg:w-full lg:justify-start"
+        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive"
       >
         <LogOut className="h-[18px] w-[18px] flex-shrink-0" />
-        <span className="hidden lg:block">Log out</span>
+        <span>Log out</span>
       </button>
     </aside>
   )

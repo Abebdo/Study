@@ -18,7 +18,7 @@ export function UpgradeBanner() {
           Unlock all courses and get unlimited access to premium content.
         </p>
         <Link
-          href="#"
+          href="/dashboard/settings"
           className="inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-sm font-semibold text-accent-foreground transition-opacity hover:opacity-90"
         >
           Start premium

@@ -282,11 +282,11 @@ export default function SignUpPage() {
 
             <p className="text-center text-xs text-muted-foreground">
               By signing up, you agree to our{" "}
-              <Link href="#" className="text-secondary hover:underline">
+              <Link href="/terms" className="text-secondary hover:underline">
                 Terms
               </Link>{" "}
               and{" "}
-              <Link href="#" className="text-secondary hover:underline">
+              <Link href="/privacy" className="text-secondary hover:underline">
                 Privacy Policy
               </Link>
             </p>

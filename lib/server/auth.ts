@@ -6,6 +6,7 @@ export interface AuthContext {
   userId: string
   role: AppRole
   fullName: string
+  email: string
 }
 
 /**
@@ -53,5 +54,6 @@ export async function requireAuth(allowedRoles?: AppRole[]): Promise<AuthContext
     userId: profile?.id ?? user.id,
     fullName: profile?.full_name ?? fallbackName,
     role: roleName,
+    email: user.email ?? "",
   }
 }
