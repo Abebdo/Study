@@ -46,6 +46,13 @@ Uses RPC function `public.enroll_in_free_course`.
 ### `GET /api/progress?courseId=<uuid>`
 Gets current user progress (optionally scoped by course).
 
+### `GET /api/progress/daily?date=YYYY-MM-DD`
+Returns daily activity snapshot from persisted progress rows:
+- `lessonsCompleted`
+- `totalTimeSpentSeconds`
+- `coursesAccessed`
+- `lastActivityTime`
+
 ### `POST /api/progress`
 Upserts lesson progress for current user.
 
@@ -61,6 +68,20 @@ Body:
 ```
 
 Uses RPC function `public.upsert_lesson_progress`.
+
+### `GET /api/favorites?page=1&limit=20`
+Returns paginated current-user favorites.
+
+### `POST /api/favorites`
+Creates a favorite for current user.
+
+Body:
+```json
+{ "courseId": "<uuid>" }
+```
+
+### `DELETE /api/favorites/<favoriteId>`
+Deletes a favorite after ownership check.
 
 ### `POST /api/lessons/access-check`
 Checks sequential lesson access.
