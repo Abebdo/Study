@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useState, useCallback, type ReactNode } from "react"
+import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
 import {
   type User,
   type UserRole,
@@ -92,6 +92,8 @@ interface PlatformContextType {
 
 const PlatformContext = createContext<PlatformContextType | undefined>(undefined)
 
+const FAVORITES_STORAGE_KEY = "eduplatform_favorites_by_user"
+
 export function PlatformProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [allUsers, setAllUsers] = useState<User[]>(defaultUsers)
@@ -99,10 +101,15 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>(defaultNotifications)
   const [conversations, setConversations] = useState<Conversation[]>(defaultConversations)
   const [messages, setMessages] = useState<Message[]>(defaultMessages)
-  const [favorites, setFavorites] = useState<number[]>([3, 5, 7, 8, 10, 12])
+  const [favorites, setFavorites] = useState<number[]>([])
   const [liveSessions, setLiveSessions] = useState<LiveSession[]>(defaultLiveSessions)
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>(defaultDiscountCodes)
   const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements)
+  const [favoritesHydrated, setFavoritesHydrated] = useState(false)
+
+  useEffect(() => {
+    setFavoritesHydrated(true)
+  }, [])
 
   // ---- AUTH ----
   const login = useCallback((email: string, _password: string) => {
@@ -146,6 +153,41 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setCurrentUser(null)
   }, [])
+
+  useEffect(() => {
+    if (!favoritesHydrated || typeof window === "undefined") return
+
+    const saved = window.localStorage.getItem(FAVORITES_STORAGE_KEY)
+    if (!saved) {
+      setFavorites([])
+      return
+    }
+
+    try {
+      const favoritesByUser = JSON.parse(saved) as Record<string, number[]>
+      const userKey = currentUser?.id ?? "guest"
+      setFavorites(Array.isArray(favoritesByUser[userKey]) ? favoritesByUser[userKey] : [])
+    } catch {
+      setFavorites([])
+    }
+  }, [currentUser, favoritesHydrated])
+
+  useEffect(() => {
+    if (!favoritesHydrated || typeof window === "undefined") return
+
+    const userKey = currentUser?.id ?? "guest"
+    let favoritesByUser: Record<string, number[]> = {}
+
+    try {
+      const existing = window.localStorage.getItem(FAVORITES_STORAGE_KEY)
+      favoritesByUser = existing ? (JSON.parse(existing) as Record<string, number[]>) : {}
+    } catch {
+      favoritesByUser = {}
+    }
+
+    favoritesByUser[userKey] = favorites
+    window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favoritesByUser))
+  }, [favorites, currentUser, favoritesHydrated])
 
   const updateUser = useCallback((updates: Partial<User>) => {
     if (!currentUser) return
