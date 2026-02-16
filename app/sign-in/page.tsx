@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation"
 import { Eye, EyeOff, GraduationCap, Layers, Globe, AlertCircle } from "lucide-react"
 import { hasActiveSession, signInWithEmail, signInWithGoogle } from "@/lib/auth-client"
 
+const DEMO_MODE_ENABLED = process.env.NEXT_PUBLIC_DEMO_MODE === "true"
+
 export default function SignInPage() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
@@ -185,6 +187,7 @@ export default function SignInPage() {
           </form>
 
           {/* Quick Login - Demo accounts */}
+          {DEMO_MODE_ENABLED && (
           <div className="mt-6 border-t border-border pt-4">
             <p className="mb-3 text-xs font-medium text-muted-foreground">Quick demo login:</p>
             <div className="flex flex-wrap gap-2">
@@ -199,6 +202,7 @@ export default function SignInPage() {
               </button>
             </div>
           </div>
+          )}
         </div>
 
         {/* Right - Illustration */}

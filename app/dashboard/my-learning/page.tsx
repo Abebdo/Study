@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import {
   Clock,
@@ -17,19 +17,53 @@ import { allCourses, courseDetails } from "@/lib/courses-data"
 
 type Tab = "in-progress" | "completed"
 
-const weeklyActivity = [
-  { day: "Mon", hours: 2.5 },
-  { day: "Tue", hours: 1.8 },
-  { day: "Wed", hours: 3.2 },
-  { day: "Thu", hours: 0.5 },
-  { day: "Fri", hours: 2.0 },
-  { day: "Sat", hours: 4.0 },
-  { day: "Sun", hours: 1.5 },
-]
+const WEEK_DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
 export default function MyLearningPage() {
   const { currentUser, enrollments, achievements } = usePlatform()
   const [activeTab, setActiveTab] = useState<Tab>("in-progress")
+
+  const learningInsights = useMemo(() => {
+    const now = new Date()
+    const dayStart = new Date(now)
+    dayStart.setHours(0, 0, 0, 0)
+
+    const weekStart = new Date(now)
+    weekStart.setDate(now.getDate() - now.getDay())
+    weekStart.setHours(0, 0, 0, 0)
+
+    const hoursByDay = Array.from({ length: 7 }, (_, index) => ({
+      day: WEEK_DAY_LABELS[index],
+      hours: 0,
+    }))
+
+    let totalSeconds = 0
+    let todaySeconds = 0
+    const activeThisWeek = new Set<number>()
+
+    for (const enrollment of enrollments) {
+      const watchedSeconds = Object.values(enrollment.watchTimes ?? {}).reduce((sum, value) => sum + value, 0)
+      totalSeconds += watchedSeconds
+
+      const lastAccess = new Date(enrollment.lastAccessedAt)
+      if (!Number.isNaN(lastAccess.getTime()) && lastAccess >= weekStart) {
+        const dayIndex = lastAccess.getDay()
+        hoursByDay[dayIndex].hours += watchedSeconds / 3600
+        activeThisWeek.add(enrollment.courseId)
+      }
+
+      if (!Number.isNaN(lastAccess.getTime()) && lastAccess >= dayStart) {
+        todaySeconds += watchedSeconds
+      }
+    }
+
+    return {
+      weeklyActivity: hoursByDay.map((item) => ({ ...item, hours: Number(item.hours.toFixed(1)) })),
+      totalHoursLearned: Number((totalSeconds / 3600).toFixed(1)),
+      todayHours: Number((todaySeconds / 3600).toFixed(1)),
+      weeklyCourses: activeThisWeek.size,
+    }
+  }, [enrollments])
 
   const enrolledWithCourses = enrollments.map((e) => {
     const course = allCourses.find((c) => c.id === e.courseId)
@@ -55,7 +89,7 @@ export default function MyLearningPage() {
   const completed = enrolledWithCourses.filter((e) => e.progress >= 100)
 
   const stats = [
-    { label: "Hours Learned", value: String(currentUser?.totalHoursLearned || 0), icon: Clock, color: "bg-blue-100 text-blue-600" },
+    { label: "Hours Learned", value: String(learningInsights.totalHoursLearned || currentUser?.totalHoursLearned || 0), icon: Clock, color: "bg-blue-100 text-blue-600" },
     { label: "Courses Active", value: String(inProgress.length), icon: BookOpen, color: "bg-amber-100 text-amber-600" },
     { label: "Certificates", value: String(completed.length), icon: Award, color: "bg-emerald-100 text-emerald-600" },
     { label: "Day Streak", value: String(currentUser?.streak || 0), icon: Flame, color: "bg-red-100 text-red-600" },
@@ -95,7 +129,7 @@ export default function MyLearningPage() {
               </div>
             </div>
             <div className="flex items-end gap-3">
-              {weeklyActivity.map((day) => {
+              {learningInsights.weeklyActivity.map((day) => {
                 const maxHours = 4
                 const height = (day.hours / maxHours) * 120
                 return (
@@ -225,19 +259,19 @@ export default function MyLearningPage() {
               <div>
                 <div className="mb-1 flex items-center justify-between text-xs">
                   <span className="flex items-center gap-1 text-muted-foreground"><Target className="h-3.5 w-3.5" />Daily goal</span>
-                  <span className="font-medium text-foreground">1.5h / 2h</span>
+                  <span className="font-medium text-foreground">{learningInsights.todayHours}h / 2h</span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full w-3/4 rounded-full bg-gradient-to-r from-secondary to-accent" />
+                  <div className="h-full rounded-full bg-gradient-to-r from-secondary to-accent" style={{ width: `${Math.min((learningInsights.todayHours / 2) * 100, 100)}%` }} />
                 </div>
               </div>
               <div>
                 <div className="mb-1 flex items-center justify-between text-xs">
                   <span className="flex items-center gap-1 text-muted-foreground"><BookOpen className="h-3.5 w-3.5" />Weekly courses</span>
-                  <span className="font-medium text-foreground">3 / 5</span>
+                  <span className="font-medium text-foreground">{learningInsights.weeklyCourses} / 5</span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full w-3/5 rounded-full bg-gradient-to-r from-primary to-primary" />
+                  <div className="h-full rounded-full bg-gradient-to-r from-primary to-primary" style={{ width: `${Math.min((learningInsights.weeklyCourses / 5) * 100, 100)}%` }} />
                 </div>
               </div>
               <div>
