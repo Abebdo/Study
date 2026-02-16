@@ -21,6 +21,7 @@ import {
   defaultDiscountCodes,
   defaultAchievements,
 } from "./store"
+import { allCourses } from "./courses-data"
 
 // ============================================================
 // PLATFORM CONTEXT - Single source of truth
@@ -93,6 +94,19 @@ interface PlatformContextType {
 const PlatformContext = createContext<PlatformContextType | undefined>(undefined)
 
 const FAVORITES_STORAGE_KEY = "eduplatform_favorites_by_user"
+const PLATFORM_STATE_STORAGE_KEY = "eduplatform_platform_state_v1"
+
+interface PersistedPlatformState {
+  currentUser: User | null
+  allUsers: User[]
+  enrollments: Enrollment[]
+  notifications: Notification[]
+  conversations: Conversation[]
+  messages: Message[]
+  liveSessions: LiveSession[]
+  discountCodes: DiscountCode[]
+  achievements: Achievement[]
+}
 
 export function PlatformProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
@@ -106,10 +120,68 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>(defaultDiscountCodes)
   const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements)
   const [favoritesHydrated, setFavoritesHydrated] = useState(false)
+  const [platformStateHydrated, setPlatformStateHydrated] = useState(false)
 
   useEffect(() => {
     setFavoritesHydrated(true)
   }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    try {
+      const savedState = window.localStorage.getItem(PLATFORM_STATE_STORAGE_KEY)
+      if (!savedState) {
+        setPlatformStateHydrated(true)
+        return
+      }
+
+      const parsed = JSON.parse(savedState) as Partial<PersistedPlatformState>
+
+      if (Array.isArray(parsed.allUsers)) setAllUsers(parsed.allUsers)
+      if (Array.isArray(parsed.enrollments)) setEnrollments(parsed.enrollments)
+      if (Array.isArray(parsed.notifications)) setNotifications(parsed.notifications)
+      if (Array.isArray(parsed.conversations)) setConversations(parsed.conversations)
+      if (Array.isArray(parsed.messages)) setMessages(parsed.messages)
+      if (Array.isArray(parsed.liveSessions)) setLiveSessions(parsed.liveSessions)
+      if (Array.isArray(parsed.discountCodes)) setDiscountCodes(parsed.discountCodes)
+      if (Array.isArray(parsed.achievements)) setAchievements(parsed.achievements)
+      if (parsed.currentUser) setCurrentUser(parsed.currentUser)
+    } catch {
+      // no-op: fallback to defaults
+    } finally {
+      setPlatformStateHydrated(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!platformStateHydrated || typeof window === "undefined") return
+
+    const stateToPersist: PersistedPlatformState = {
+      currentUser,
+      allUsers,
+      enrollments,
+      notifications,
+      conversations,
+      messages,
+      liveSessions,
+      discountCodes,
+      achievements,
+    }
+
+    window.localStorage.setItem(PLATFORM_STATE_STORAGE_KEY, JSON.stringify(stateToPersist))
+  }, [
+    platformStateHydrated,
+    currentUser,
+    allUsers,
+    enrollments,
+    notifications,
+    conversations,
+    messages,
+    liveSessions,
+    discountCodes,
+    achievements,
+  ])
 
   // ---- AUTH ----
   const login = useCallback((email: string, _password: string) => {
@@ -250,7 +322,18 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
         const completed = e.completedLessons.includes(lessonId)
           ? e.completedLessons
           : [...e.completedLessons, lessonId]
-        return { ...e, completedLessons: completed, lastAccessedAt: new Date().toISOString() }
+
+        const totalLessons = allCourses.find((course) => course.id === courseId)?.lessons ?? 0
+        const progress = totalLessons > 0
+          ? Math.min(100, Math.round((completed.length / totalLessons) * 100))
+          : e.progress
+
+        return {
+          ...e,
+          completedLessons: completed,
+          progress,
+          lastAccessedAt: new Date().toISOString(),
+        }
       }
       return e
     }))
